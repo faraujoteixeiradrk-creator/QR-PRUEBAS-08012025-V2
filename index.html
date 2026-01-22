@@ -775,6 +775,7 @@
         }
 
         function renderResults(params, method, pageNum, fullUrl, evidenceCanvas) {
+            // Extracción de datos extendida
             const impTotal = parseFloat(params.imp || 0);
             
             let p1 = parseFloat(params.cfP1 || 0);
@@ -792,7 +793,26 @@
             const totalConsumo = p1 + p2 + p3;
             const fechaInicio = params.iniF || params.iniA || '-';
             const fechaFin = params.finF || '-';
+            const fechaFinContrato = params.finContrato || '-';
             
+            // Importes detallados
+            const impPotencia = parseFloat(params.impPot || 0);
+            const impEnergia = parseFloat(params.impEner || 0);
+            const impOtros = parseFloat(params.impOtrosConIE || params.impOtrosSinIE || 0);
+            const impBonoSocial = parseFloat(params.finBS || 0);
+            const impAlquiler = parseFloat(params.impAlquiler || 0); // A veces no viene explícito
+            
+            // Precios unitarios
+            const precioPotP1 = parseFloat(params.prP1 || 0).toFixed(6);
+            const precioPotP2 = parseFloat(params.prP2 || 0).toFixed(6);
+            const precioEnerP1 = parseFloat(params.prE1 || 0).toFixed(6);
+            const precioEnerP2 = parseFloat(params.prE2 || 0).toFixed(6);
+            const precioEnerP3 = parseFloat(params.prE3 || 0).toFixed(6);
+            
+            // Potencias máximas
+            const pmaxP1 = params.pmaxP1 || '-';
+            const pmaxP2 = params.pmaxP2 || '-';
+
             results.innerHTML = `
                 <div class="result-card">
                     <div class="result-header">
@@ -838,6 +858,7 @@
                                     <span style="font-weight: 600;">${p1} kWh</span>
                                 </div>
                                 <div class="bar-container"><div class="bar-fill" style="width: ${totalConsumo > 0 ? (p1/totalConsumo)*100 : 0}%"></div></div>
+                                <div style="font-size: 0.75rem; color: var(--gray); margin-top: 2px;">Precio: ${precioEnerP1} €/kWh</div>
                             </div>
                             <div style="margin-bottom: 1rem;">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
@@ -845,6 +866,7 @@
                                     <span style="font-weight: 600;">${p2} kWh</span>
                                 </div>
                                 <div class="bar-container"><div class="bar-fill" style="width: ${totalConsumo > 0 ? (p2/totalConsumo)*100 : 0}%; opacity: 0.7;"></div></div>
+                                <div style="font-size: 0.75rem; color: var(--gray); margin-top: 2px;">Precio: ${precioEnerP2} €/kWh</div>
                             </div>
                             <div>
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
@@ -852,16 +874,21 @@
                                     <span style="font-weight: 600;">${p3} kWh</span>
                                 </div>
                                 <div class="bar-container"><div class="bar-fill" style="width: ${totalConsumo > 0 ? (p3/totalConsumo)*100 : 0}%; opacity: 0.4;"></div></div>
+                                <div style="font-size: 0.75rem; color: var(--gray); margin-top: 2px;">Precio: ${precioEnerP3} €/kWh</div>
                             </div>
                         </div>
 
                         <div>
-                            <h3 style="margin-bottom: 1rem; color: var(--light);">Detalles Técnicos</h3>
+                            <h3 style="margin-bottom: 1rem; color: var(--light);">Detalles Económicos</h3>
                             <table class="data-table">
-                                <tr><th>Periodo</th><td>${fechaInicio} al ${fechaFin}</td></tr>
-                                <tr><th>Potencia P1 / P2</th><td>${params.pP1 || 0} kW / ${params.pP2 || 0} kW</td></tr>
-                                <tr><th style="color: var(--primary);">Importe Energía</th><td style="color: var(--primary); font-weight: 700;">${params.impEner || 0} €</td></tr>
-                                <tr><th>Importe Potencia</th><td>${params.impPot || 0} €</td></tr>
+                                <tr><th>Periodo Fact.</th><td>${fechaInicio} al ${fechaFin}</td></tr>
+                                <tr><th>Fin Contrato</th><td>${fechaFinContrato}</td></tr>
+                                <tr><th>Potencia Contratada</th><td>P1: ${params.pP1} kW <span style="color:var(--gray);font-size:0.8em">(${precioPotP1} €/kW/d)</span><br>P2: ${params.pP2} kW <span style="color:var(--gray);font-size:0.8em">(${precioPotP2} €/kW/d)</span></td></tr>
+                                <tr><th>Potencia Máxima</th><td>P1: ${pmaxP1} kW / P2: ${pmaxP2} kW</td></tr>
+                                <tr><th style="color: var(--primary);">Importe Energía</th><td style="color: var(--primary); font-weight: 700;">${impEnergia.toFixed(2)} €</td></tr>
+                                <tr><th>Importe Potencia</th><td>${impPotencia.toFixed(2)} €</td></tr>
+                                ${impBonoSocial > 0 ? `<tr><th>Bono Social</th><td>${impBonoSocial.toFixed(2)} €</td></tr>` : ''}
+                                ${impOtros !== 0 ? `<tr><th>Otros Conceptos</th><td>${impOtros.toFixed(2)} €</td></tr>` : ''}
                             </table>
                         </div>
                     </div>
