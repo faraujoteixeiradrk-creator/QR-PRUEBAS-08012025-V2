@@ -392,8 +392,8 @@
             
             <div class="methods-badge">
                 <div class="badge"><span>🔗</span> Link Texto</div>
-                <div class="badge"><span>👁️</span> Filtro Enfoque</div>
-                <div class="badge"><span>🎯</span> Zona Derecha</div>
+                <div class="badge"><span>💎</span> Minería IMG</div>
+                <div class="badge"><span>🎯</span> Superresolución</div>
             </div>
             
             <input type="file" id="fileInput" accept=".pdf, .jpg, .jpeg, .png">
@@ -477,7 +477,7 @@
             let qrUrl = attemptQRScan(ctx, canvas.width, canvas.height, false);
             
             if (!qrUrl) {
-                updateLog('Aplicando Enfoque + Filtro Adaptativo...');
+                updateLog('Aplicando Superresolución + Filtro Adaptativo...');
                 qrUrl = performDeepScan(ctx, canvas.width, canvas.height);
             }
 
@@ -576,13 +576,14 @@
             await new Promise(r => setTimeout(r, 500));
             if (document.getElementById('results').classList.contains('active')) return;
 
-            // ESTRATEGIA 4: Búsqueda Visual con FILTRO DE ENFOQUE + ADAPTATIVO
-            updateLog('Iniciando modo Enfoque + Escaneo Zonal...');
+            // ESTRATEGIA 4: Búsqueda Visual con SUPERRESOLUCIÓN + FILTRO ADAPTATIVO
+            updateLog('Iniciando modo Superresolución + Escaneo Zonal...');
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
-                updateLog(`Página ${i}: Escaneo por Zonas (Filtro Sharpen)...`);
-                let qrData = await scanPageQuadrants(page, 4.0); // Ultra Zoom
-                if (qrData) { processSuccess(qrData, 'Escáner Enfocado 4x', i); return; }
+                updateLog(`Página ${i}: Escaneo por Zonas (Filtro HiDPI)...`);
+                // Subimos la escala a 5.0 para capturar QRs vectoriales muy finos
+                let qrData = await scanPageQuadrants(page, 5.0); 
+                if (qrData) { processSuccess(qrData, 'Escáner HiDPI 5x', i); return; }
             }
 
             throw new Error("No se encontró el QR. Intenta hacer una captura de pantalla del QR y subirla como imagen.");
@@ -590,17 +591,55 @@
 
         // --- MOTOR DE PROCESAMIENTO AVANZADO ---
 
+        // Binarización por Bloques (Block Thresholding) - Mejor que Adaptativo simple
+        function getBlockThresholdImage(data, width, height) {
+            const output = new Uint8ClampedArray(data.length);
+            const gray = new Uint8Array(width * height);
+            
+            // 1. Grayscale
+            for (let i = 0; i < width * height; i++) {
+                gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+            }
+
+            // 2. Block processing
+            const blockSize = 32; // Bloques de 32x32
+            
+            for (let by = 0; by < height; by += blockSize) {
+                for (let bx = 0; bx < width; bx += blockSize) {
+                    // Calcular media del bloque
+                    let sum = 0, count = 0;
+                    for (let y = by; y < Math.min(by + blockSize, height); y++) {
+                        for (let x = bx; x < Math.min(bx + blockSize, width); x++) {
+                            sum += gray[y * width + x];
+                            count++;
+                        }
+                    }
+                    const blockMean = sum / count;
+                    const threshold = blockMean - 5; // Ligero offset
+
+                    // Aplicar umbral al bloque
+                    for (let y = by; y < Math.min(by + blockSize, height); y++) {
+                        for (let x = bx; x < Math.min(bx + blockSize, width); x++) {
+                            const idx = y * width + x;
+                            const binVal = gray[idx] < threshold ? 0 : 255;
+                            const outIdx = idx * 4;
+                            output[outIdx] = binVal;
+                            output[outIdx+1] = binVal;
+                            output[outIdx+2] = binVal;
+                            output[outIdx+3] = 255;
+                        }
+                    }
+                }
+            }
+            return output;
+        }
+
         // Filtro de Enfoque (Sharpen) - Clave para QRs vectoriales borrosos
         function getSharpenedData(ctx, width, height) {
             const imageData = ctx.getImageData(0, 0, width, height);
             const data = imageData.data;
             const output = new Uint8ClampedArray(data.length);
             const w = width;
-            
-            // Kernel de enfoque simple 3x3
-            //  0 -1  0
-            // -1  5 -1
-            //  0 -1  0
             const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
 
             for (let y = 1; y < height - 1; y++) {
@@ -626,46 +665,7 @@
             return output;
         }
 
-        // Binarización Adaptativa
-        function getAdaptiveThresholdImage(data, width, height) {
-            const output = new Uint8ClampedArray(data.length);
-            const gray = new Uint8Array(width * height);
-            
-            for (let i = 0; i < width * height; i++) {
-                gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
-            }
-
-            const windowSize = 25; 
-            const halfWindow = Math.floor(windowSize / 2);
-            
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    const idx = y * width + x;
-                    let sum = 0, count = 0;
-                    const samples = [[0,0], [-halfWindow, 0], [halfWindow, 0], [0, -halfWindow], [0, halfWindow]];
-                    
-                    for(let s of samples) {
-                        const sx = Math.min(Math.max(x + s[0], 0), width - 1);
-                        const sy = Math.min(Math.max(y + s[1], 0), height - 1);
-                        sum += gray[sy * width + sx];
-                        count++;
-                    }
-                    
-                    const localMean = sum / count;
-                    const threshold = localMean - 10; 
-                    const binVal = gray[idx] < threshold ? 0 : 255;
-                    
-                    const outIdx = idx * 4;
-                    output[outIdx] = binVal;
-                    output[outIdx+1] = binVal;
-                    output[outIdx+2] = binVal;
-                    output[outIdx+3] = 255;
-                }
-            }
-            return output;
-        }
-
-        // Deep Scan: Normal -> Enfoque -> Adaptativo
+        // Deep Scan: Normal -> Enfoque -> Bloques -> Invertido
         function performDeepScan(ctx, width, height) {
             const imageData = ctx.getImageData(0, 0, width, height);
             const originalData = imageData.data;
@@ -679,9 +679,9 @@
             code = jsQR(sharpenedData, width, height, { inversionAttempts: "dontInvert" });
             if (code && isCNMCData(code.data)) return code.data;
 
-            // 3. Adaptativo sobre Enfocado
-            const adaptiveData = getAdaptiveThresholdImage(sharpenedData, width, height);
-            code = jsQR(adaptiveData, width, height, { inversionAttempts: "dontInvert" });
+            // 3. Block Thresholding (Super agresivo para QRs difíciles)
+            const blockData = getBlockThresholdImage(originalData, width, height);
+            code = jsQR(blockData, width, height, { inversionAttempts: "attemptBoth" }); // Prueba invertido también aquí
             if (code && isCNMCData(code.data)) return code.data;
 
             return null;
@@ -697,9 +697,10 @@
 
             const w = canvas.width, h = canvas.height;
             
-            // Zonas estratégicas incluyendo COLUMNA DERECHA COMPLETA
+            // Zonas estratégicas incluyendo COLUMNA DERECHA COMPLETA y CENTRO-DERECHA
             const zones = [
-                { x: w*0.6, y: 0, w: w*0.4, h: h }, // Columna Derecha (Prioridad Alta)
+                { x: w*0.5, y: h*0.2, w: w*0.5, h: h*0.6 }, // Zona caliente QR (Mitad derecha, centro vertical)
+                { x: w*0.6, y: 0, w: w*0.4, h: h }, // Columna Derecha completa
                 { x: 0, y: 0, w: w/2, h: h/2 }, // TL
                 { x: w/2, y: 0, w: w/2, h: h/2 }, // TR
                 { x: 0, y: h/2, w: w/2, h: h/2 }, // BL
@@ -716,7 +717,7 @@
                 
                 const data = performDeepScan(tempCtx, z.w, z.h);
                 if (data) {
-                    processSuccess(data, 'Escáner Zonal (Enfoque)', 0, tempC); 
+                    processSuccess(data, 'Escáner Zonal (Superresolución)', 0, tempC); 
                     return data; 
                 }
             }
