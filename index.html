@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -393,7 +393,7 @@
             <div class="methods-badge">
                 <div class="badge"><span>🔗</span> Link Texto</div>
                 <div class="badge"><span>💎</span> Minería IMG</div>
-                <div class="badge"><span>🎯</span> Recorte 3x3</div>
+                <div class="badge"><span>🧠</span> Binarización Adaptativa</div>
             </div>
             
             <input type="file" id="fileInput" accept=".pdf, .jpg, .jpeg, .png">
@@ -473,20 +473,18 @@
             canvas.height = bitmap.height;
             ctx.drawImage(bitmap, 0, 0);
 
-            // Intento 1: Escaneo Directo
-            updateLog('Analizando foto (Modo Directo)...');
+            updateLog('Analizando foto...');
             let qrUrl = attemptQRScan(ctx, canvas.width, canvas.height, false);
             
-            // Intento 2: Barrido de Umbrales (Deep Scan)
             if (!qrUrl) {
-                updateLog('Aplicando escaneo profundo de contraste...');
+                updateLog('Aplicando Filtro Adaptativo (Visión Nocturna)...');
                 qrUrl = performDeepScan(ctx, canvas.width, canvas.height);
             }
 
             if (qrUrl) {
                 processSuccess(qrUrl, 'Escáner de Foto', 1);
             } else {
-                throw new Error("No se detectó ningún código QR de la CNMC en la imagen. Intenta mejorar la iluminación o enfocar mejor el QR.");
+                throw new Error("No se detectó ningún código QR. Intenta mejorar la iluminación.");
             }
         }
 
@@ -496,37 +494,30 @@
             updateLog(`PDF cargado: ${pdf.numPages} páginas detectadas.`);
 
             // ESTRATEGIA 1: Buscar enlaces clicables y TOOLTIPS (Anotaciones)
-            // CRÍTICO: Buscar tooltips/popups donde suele estar el código en facturas digitales
             updateLog('Buscando enlaces digitales y tooltips...');
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const annotations = await page.getAnnotations();
                 
                 for (const ann of annotations) {
-                    // Check URL (Link normal)
                     if (ann.url && isCNMCData(ann.url)) {
-                        updateLog('¡Datos digitales encontrados en enlace!');
                         processSuccess(ann.url, 'Enlace Digital', i);
                         return;
                     }
-                    // Check Tooltips/Contents (Contenido oculto al pasar ratón)
-                    // A veces el contenido está en 'contents', otras veces en 'richContents'
                     if (ann.contents && isCNMCData(ann.contents)) {
-                        updateLog('¡Datos encontrados en Tooltip (MouseOver)!');
                         processSuccess(ann.contents, 'Tooltip Oculto (Ratón)', i);
                         return;
                     }
                 }
             }
 
-            // ESTRATEGIA 2: Escaneo de Texto en Bruto (REFORZADO)
+            // ESTRATEGIA 2: Escaneo de Texto en Bruto
             updateLog('Analizando texto completo del documento...');
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
-                
-                // 1. Texto Unido (Sin espacios) - Para enlaces cortados por formato
                 const rawText = textContent.items.map(item => item.str).join(''); 
+                
                 if (isCNMCData(rawText)) {
                      const startIdx = rawText.indexOf('comparador.cnmc.gob.es');
                      if (startIdx !== -1) {
@@ -534,25 +525,13 @@
                         const endMatch = potentialUrl.match(/[^a-zA-Z0-9\/\?=&%\.\-\_]/);
                         if (endMatch) potentialUrl = potentialUrl.substring(0, endMatch.index);
                         potentialUrl = 'https://' + potentialUrl;
-                        updateLog('URL extraída por Texto (Unido).');
                         processSuccess(potentialUrl, 'Texto en PDF (Unido)', i);
                         return;
                      }
                 }
-
-                // 2. Texto Espaciado (Con espacios) - Para enlaces naturales
-                const spacedText = textContent.items.map(item => item.str).join(' ');
-                const match = spacedText.match(/(https?:\s*\/\/\s*)?comparador\.cnmc\.gob\.es\/[A-Za-z0-9\/\?=&%\.\-\_]+/i);
-                if (match) {
-                    let cleanUrl = match[0].replace(/\s/g, '');
-                    if (!cleanUrl.startsWith('http')) cleanUrl = 'https://' + cleanUrl;
-                    updateLog('URL reconstruida por Texto (Espaciado).');
-                    processSuccess(cleanUrl, 'Texto en PDF (Regex)', i);
-                    return;
-                }
             }
 
-            // ESTRATEGIA 3: Minería de Imágenes (NATIVE IMAGE EXTRACTION)
+            // ESTRATEGIA 3: Minería de Imágenes (NATIVE)
             updateLog('Iniciando Minería de Imágenes Nativa...');
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
@@ -561,10 +540,8 @@
                     const commonObjs = page.objs;
                     
                     for (let j = 0; j < ops.fnArray.length; j++) {
-                        if (ops.fnArray[j] === pdfjsLib.OPS.paintImageXObject || ops.fnArray[j] === pdfjsLib.OPS.paintInlineImageXObject) {
+                        if (ops.fnArray[j] === pdfjsLib.OPS.paintImageXObject) {
                             const imgName = ops.argsArray[j][0];
-                            if (ops.fnArray[j] === pdfjsLib.OPS.paintInlineImageXObject) continue;
-
                             if (commonObjs.has(imgName)) {
                                 commonObjs.get(imgName, (imgData) => {
                                     if (imgData && imgData.width > 50) { 
@@ -572,11 +549,13 @@
                                         tempCanvas.width = imgData.width;
                                         tempCanvas.height = imgData.height;
                                         const ctx = tempCanvas.getContext('2d');
-                                        
                                         const imageDataObj = ctx.createImageData(imgData.width, imgData.height);
-                                        if (imgData.kind === 'RGB' || imgData.kind === 'RGBA') {
-                                            for(let k=0; k<imgData.data.length; k++) imageDataObj.data[k] = imgData.data[k];
-                                        } else if (imgData.data.length === imgData.width * imgData.height) { // Grayscale
+                                        
+                                        // Copia segura de datos
+                                        if (imgData.data.length === imageDataObj.data.length) {
+                                            imageDataObj.data.set(imgData.data);
+                                        } else {
+                                            // Fallback para escala de grises
                                             for(let k=0, p=0; k<imgData.data.length; k++, p+=4) {
                                                 const val = imgData.data[k];
                                                 imageDataObj.data[p] = val;
@@ -588,10 +567,8 @@
                                         
                                         ctx.putImageData(imageDataObj, 0, 0);
                                         
-                                        // Escaneo Profundo sobre la imagen extraída
                                         const rawCode = performDeepScan(ctx, imgData.width, imgData.height);
                                         if (rawCode) {
-                                            updateLog('¡QR detectado por Minería de Imágenes!');
                                             processSuccess(rawCode, 'Minería de Imágenes', i, tempCanvas);
                                             return;
                                         }
@@ -606,30 +583,78 @@
             await new Promise(r => setTimeout(r, 500));
             if (document.getElementById('results').classList.contains('active')) return;
 
-            // ESTRATEGIA 4: Búsqueda Visual "FRANCOTIRADOR" (Full Page + GRID 3x3)
-            updateLog('Iniciando modo Francotirador (Visual)...');
+            // ESTRATEGIA 4: Búsqueda Visual con FILTRO ADAPTATIVO
+            updateLog('Iniciando modo Francotirador + Filtro Adaptativo...');
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 
-                // 1. Escaneo Full Page (Zoom 2.0)
-                updateLog(`Página ${i}: Vista General...`);
-                let qrData = await scanPageWithCrop(page, 2.0);
-                if (qrData) { processSuccess(qrData, 'Escáner General', i); return; }
-
-                // 2. Escaneo por CUADRÍCULA 3x3 SOLAPADA (Francotirador)
-                // Aumentamos zoom a 4.0 para cazar QRs diminutos
-                updateLog(`Página ${i}: Escaneo Profundo por Zonas (3x3)...`);
-                qrData = await scanPageQuadrants(page, 4.0); 
-                if (qrData) { processSuccess(qrData, 'Escáner Zonal 3x3', i); return; }
+                updateLog(`Página ${i}: Escaneo por Zonas (Filtro Inteligente)...`);
+                let qrData = await scanPageQuadrants(page, 3.5); // Zoom alto
+                if (qrData) { processSuccess(qrData, 'Escáner Adaptativo 3x3', i); return; }
             }
 
-            throw new Error("No se pudo encontrar ninguna referencia válida a la CNMC (Texto, QR o Enlace).");
+            throw new Error("No se encontró el QR. Intenta hacer una captura de pantalla del QR y subirla como imagen JPG/PNG.");
         }
 
-        // --- FUNCIONES AUXILIARES ---
+        // --- MOTOR DE PROCESAMIENTO AVANZADO ---
 
-        // Función Maestra de Escaneo Profundo (Deep Scan)
-        // Prueba inversión de color y múltiples umbrales de contraste
+        // Binarización Adaptativa (El secreto de los visores profesionales)
+        function getAdaptiveThresholdImage(ctx, width, height) {
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            const output = new Uint8ClampedArray(data.length);
+            
+            // Convertir a grises
+            const gray = new Uint8Array(width * height);
+            for (let i = 0; i < width * height; i++) {
+                // Luma (percibido)
+                gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+            }
+
+            // Kernel de ventana deslizante (simplificado para rendimiento)
+            // Comparamos cada pixel con el promedio local
+            const windowSize = 25; // Tamaño del bloque local
+            const halfWindow = Math.floor(windowSize / 2);
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = y * width + x;
+                    const val = gray[idx];
+                    
+                    // Calcular media local (aproximación rápida muestreando puntos alrededor)
+                    // Para rendimiento real en JS puro sin Integral Images, tomamos 5 muestras del entorno
+                    let sum = 0;
+                    let count = 0;
+                    
+                    // Muestreo disperso alrededor
+                    const samples = [
+                        [0,0], [-halfWindow, 0], [halfWindow, 0], [0, -halfWindow], [0, halfWindow]
+                    ];
+                    
+                    for(let s of samples) {
+                        const sx = Math.min(Math.max(x + s[0], 0), width - 1);
+                        const sy = Math.min(Math.max(y + s[1], 0), height - 1);
+                        sum += gray[sy * width + sx];
+                        count++;
+                    }
+                    
+                    const localMean = sum / count;
+                    
+                    // Umbral dinámico: si es más oscuro que el promedio local (-offset), es negro.
+                    const threshold = localMean - 10; 
+                    const binVal = val < threshold ? 0 : 255;
+                    
+                    const outIdx = idx * 4;
+                    output[outIdx] = binVal;
+                    output[outIdx+1] = binVal;
+                    output[outIdx+2] = binVal;
+                    output[outIdx+3] = 255;
+                }
+            }
+            return output;
+        }
+
+        // Deep Scan: Prueba Normal, Invertida, Umbrales Fijos y ADAPTATIVO
         function performDeepScan(ctx, width, height) {
             const imageData = ctx.getImageData(0, 0, width, height);
             const originalData = imageData.data;
@@ -642,9 +667,13 @@
             code = jsQR(originalData, width, height, { inversionAttempts: "invertFirst" });
             if (code && isCNMCData(code.data)) return code.data;
 
-            // 3. Barrido de Umbrales (Simulación de Auto-Exposición)
-            const thresholds = [80, 120, 160, 200]; // Oscuro -> Claro
-            
+            // 3. Intento ADAPTATIVO (La clave para QRs vectoriales/borrosos)
+            const adaptiveData = getAdaptiveThresholdImage(ctx, width, height);
+            code = jsQR(adaptiveData, width, height, { inversionAttempts: "dontInvert" });
+            if (code && isCNMCData(code.data)) return code.data;
+
+            // 4. Barrido de Umbrales Fijos (Backup)
+            const thresholds = [100, 160]; 
             for (const threshold of thresholds) {
                 const binarizedData = new Uint8ClampedArray(originalData.length);
                 for (let i = 0; i < originalData.length; i += 4) {
@@ -655,7 +684,6 @@
                     binarizedData[i+2] = val;
                     binarizedData[i+3] = 255; 
                 }
-                
                 code = jsQR(binarizedData, width, height, { inversionAttempts: "dontInvert" });
                 if (code && isCNMCData(code.data)) return code.data;
             }
@@ -663,7 +691,6 @@
             return null;
         }
 
-        // Escaneo por Cuadrantes Avanzado (3x3 Grid con Solapamiento)
         async function scanPageQuadrants(page, scale) {
             const viewport = page.getViewport({ scale: scale });
             const canvas = document.createElement('canvas');
@@ -674,22 +701,17 @@
 
             const w = canvas.width, h = canvas.height;
             
-            // Creamos 9 zonas solapadas (3 columnas x 3 filas)
-            // Cada zona cubre el 50% del ancho/alto, moviéndose un 25% cada paso
-            // Esto asegura que ningún QR se corte por la mitad
+            // Grid 3x3 solapado
             const zones = [
-                // Fila Superior
                 { x: 0, y: 0, w: w/2, h: h/2 },
-                { x: w/4, y: 0, w: w/2, h: h/2 },
                 { x: w/2, y: 0, w: w/2, h: h/2 },
-                // Fila Media
-                { x: 0, y: h/4, w: w/2, h: h/2 },
-                { x: w/4, y: h/4, w: w/2, h: h/2 }, // Centro puro
-                { x: w/2, y: h/4, w: w/2, h: h/2 },
-                // Fila Inferior
                 { x: 0, y: h/2, w: w/2, h: h/2 },
-                { x: w/4, y: h/2, w: w/2, h: h/2 },
-                { x: w/2, y: h/2, w: w/2, h: h/2 }
+                { x: w/2, y: h/2, w: w/2, h: h/2 },
+                { x: w/4, y: h/4, w: w/2, h: h/2 },
+                { x: 0, y: h/4, w: w/2, h: h/2 }, // Mid L
+                { x: w/2, y: h/4, w: w/2, h: h/2 }, // Mid R
+                { x: w/4, y: 0, w: w/2, h: h/2 }, // Mid T
+                { x: w/4, y: h/2, w: w/2, h: h/2 } // Mid B
             ];
 
             for (let z of zones) {
@@ -701,8 +723,7 @@
                 
                 const data = performDeepScan(tempCtx, z.w, z.h);
                 if (data) {
-                    updateLog('¡QR localizado en zona recortada (Grid 3x3)!');
-                    processSuccess(data, 'Escáner Zonal (Recorte)', 0, tempC); 
+                    processSuccess(data, 'Escáner Zonal (Adaptativo)', 0, tempC); 
                     return data; 
                 }
             }
@@ -712,7 +733,6 @@
         function isCNMCData(str) {
             if (!str) return false;
             if (str.includes('comparador.cnmc.gob.es')) return true;
-            // Detección laxa para datos en crudo (RAW)
             if (str.includes('cups=') || str.includes('CUPS=')) {
                 if (str.includes('imp=') || str.includes('IMP=') || str.includes('cp=') || str.includes('CP=')) {
                     return true;
@@ -775,7 +795,6 @@
         }
 
         function renderResults(params, method, pageNum, fullUrl, evidenceCanvas) {
-            // Extracción de datos extendida
             const impTotal = parseFloat(params.imp || 0);
             
             let p1 = parseFloat(params.cfP1 || 0);
@@ -794,22 +813,17 @@
             const fechaInicio = params.iniF || params.iniA || '-';
             const fechaFin = params.finF || '-';
             const fechaFinContrato = params.finContrato || '-';
-            
-            // Importes detallados
-            const impPotencia = parseFloat(params.impPot || 0);
             const impEnergia = parseFloat(params.impEner || 0);
-            const impOtros = parseFloat(params.impOtrosConIE || params.impOtrosSinIE || 0);
+            const impPotencia = parseFloat(params.impPot || 0);
             const impBonoSocial = parseFloat(params.finBS || 0);
-            const impAlquiler = parseFloat(params.impAlquiler || 0); // A veces no viene explícito
+            const impOtros = parseFloat(params.impOtrosConIE || params.impOtrosSinIE || 0);
             
-            // Precios unitarios
             const precioPotP1 = parseFloat(params.prP1 || 0).toFixed(6);
             const precioPotP2 = parseFloat(params.prP2 || 0).toFixed(6);
             const precioEnerP1 = parseFloat(params.prE1 || 0).toFixed(6);
             const precioEnerP2 = parseFloat(params.prE2 || 0).toFixed(6);
             const precioEnerP3 = parseFloat(params.prE3 || 0).toFixed(6);
             
-            // Potencias máximas
             const pmaxP1 = params.pmaxP1 || '-';
             const pmaxP2 = params.pmaxP2 || '-';
 
