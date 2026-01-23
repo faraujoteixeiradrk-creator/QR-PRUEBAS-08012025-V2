@@ -95,8 +95,8 @@
         .upload-zone {
             background: var(--surface);
             backdrop-filter: blur(12px);
-            border: 2px dashed var(--primary);
             border-radius: 24px;
+            border: 2px dashed var(--primary);
             padding: 4rem 2rem;
             text-align: center;
             cursor: pointer;
@@ -392,8 +392,8 @@
             
             <div class="methods-badge">
                 <div class="badge"><span>🔗</span> Link Texto</div>
-                <div class="badge"><span>💎</span> Minería IMG</div>
-                <div class="badge"><span>🧠</span> Binarización Adaptativa</div>
+                <div class="badge"><span>👁️</span> Filtro Enfoque</div>
+                <div class="badge"><span>🎯</span> Zona Derecha</div>
             </div>
             
             <input type="file" id="fileInput" accept=".pdf, .jpg, .jpeg, .png">
@@ -477,7 +477,7 @@
             let qrUrl = attemptQRScan(ctx, canvas.width, canvas.height, false);
             
             if (!qrUrl) {
-                updateLog('Aplicando Filtro Adaptativo (Visión Nocturna)...');
+                updateLog('Aplicando Enfoque + Filtro Adaptativo...');
                 qrUrl = performDeepScan(ctx, canvas.width, canvas.height);
             }
 
@@ -493,12 +493,11 @@
             const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
             updateLog(`PDF cargado: ${pdf.numPages} páginas detectadas.`);
 
-            // ESTRATEGIA 1: Buscar enlaces clicables y TOOLTIPS (Anotaciones)
+            // ESTRATEGIA 1: Buscar enlaces clicables y TOOLTIPS
             updateLog('Buscando enlaces digitales y tooltips...');
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const annotations = await page.getAnnotations();
-                
                 for (const ann of annotations) {
                     if (ann.url && isCNMCData(ann.url)) {
                         processSuccess(ann.url, 'Enlace Digital', i);
@@ -538,7 +537,6 @@
                 try {
                     const ops = await page.getOperatorList();
                     const commonObjs = page.objs;
-                    
                     for (let j = 0; j < ops.fnArray.length; j++) {
                         if (ops.fnArray[j] === pdfjsLib.OPS.paintImageXObject) {
                             const imgName = ops.argsArray[j][0];
@@ -550,12 +548,9 @@
                                         tempCanvas.height = imgData.height;
                                         const ctx = tempCanvas.getContext('2d');
                                         const imageDataObj = ctx.createImageData(imgData.width, imgData.height);
-                                        
-                                        // Copia segura de datos
                                         if (imgData.data.length === imageDataObj.data.length) {
                                             imageDataObj.data.set(imgData.data);
                                         } else {
-                                            // Fallback para escala de grises
                                             for(let k=0, p=0; k<imgData.data.length; k++, p+=4) {
                                                 const val = imgData.data[k];
                                                 imageDataObj.data[p] = val;
@@ -564,9 +559,7 @@
                                                 imageDataObj.data[p+3] = 255;
                                             }
                                         }
-                                        
                                         ctx.putImageData(imageDataObj, 0, 0);
-                                        
                                         const rawCode = performDeepScan(ctx, imgData.width, imgData.height);
                                         if (rawCode) {
                                             processSuccess(rawCode, 'Minería de Imágenes', i, tempCanvas);
@@ -583,53 +576,73 @@
             await new Promise(r => setTimeout(r, 500));
             if (document.getElementById('results').classList.contains('active')) return;
 
-            // ESTRATEGIA 4: Búsqueda Visual con FILTRO ADAPTATIVO
-            updateLog('Iniciando modo Francotirador + Filtro Adaptativo...');
+            // ESTRATEGIA 4: Búsqueda Visual con FILTRO DE ENFOQUE + ADAPTATIVO
+            updateLog('Iniciando modo Enfoque + Escaneo Zonal...');
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
-                
-                updateLog(`Página ${i}: Escaneo por Zonas (Filtro Inteligente)...`);
-                let qrData = await scanPageQuadrants(page, 3.5); // Zoom alto
-                if (qrData) { processSuccess(qrData, 'Escáner Adaptativo 3x3', i); return; }
+                updateLog(`Página ${i}: Escaneo por Zonas (Filtro Sharpen)...`);
+                let qrData = await scanPageQuadrants(page, 4.0); // Ultra Zoom
+                if (qrData) { processSuccess(qrData, 'Escáner Enfocado 4x', i); return; }
             }
 
-            throw new Error("No se encontró el QR. Intenta hacer una captura de pantalla del QR y subirla como imagen JPG/PNG.");
+            throw new Error("No se encontró el QR. Intenta hacer una captura de pantalla del QR y subirla como imagen.");
         }
 
         // --- MOTOR DE PROCESAMIENTO AVANZADO ---
 
-        // Binarización Adaptativa (El secreto de los visores profesionales)
-        function getAdaptiveThresholdImage(ctx, width, height) {
+        // Filtro de Enfoque (Sharpen) - Clave para QRs vectoriales borrosos
+        function getSharpenedData(ctx, width, height) {
             const imageData = ctx.getImageData(0, 0, width, height);
             const data = imageData.data;
             const output = new Uint8ClampedArray(data.length);
+            const w = width;
             
-            // Convertir a grises
+            // Kernel de enfoque simple 3x3
+            //  0 -1  0
+            // -1  5 -1
+            //  0 -1  0
+            const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
+
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    let r = 0, g = 0, b = 0;
+                    for (let ky = -1; ky <= 1; ky++) {
+                        for (let kx = -1; kx <= 1; kx++) {
+                            const kidx = (ky + 1) * 3 + (kx + 1);
+                            const pidx = ((y + ky) * w + (x + kx)) * 4;
+                            const weight = kernel[kidx];
+                            r += data[pidx] * weight;
+                            g += data[pidx + 1] * weight;
+                            b += data[pidx + 2] * weight;
+                        }
+                    }
+                    const idx = (y * w + x) * 4;
+                    output[idx] = Math.min(255, Math.max(0, r));
+                    output[idx + 1] = Math.min(255, Math.max(0, g));
+                    output[idx + 2] = Math.min(255, Math.max(0, b));
+                    output[idx + 3] = 255;
+                }
+            }
+            return output;
+        }
+
+        // Binarización Adaptativa
+        function getAdaptiveThresholdImage(data, width, height) {
+            const output = new Uint8ClampedArray(data.length);
             const gray = new Uint8Array(width * height);
+            
             for (let i = 0; i < width * height; i++) {
-                // Luma (percibido)
                 gray[i] = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
             }
 
-            // Kernel de ventana deslizante (simplificado para rendimiento)
-            // Comparamos cada pixel con el promedio local
-            const windowSize = 25; // Tamaño del bloque local
+            const windowSize = 25; 
             const halfWindow = Math.floor(windowSize / 2);
             
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const idx = y * width + x;
-                    const val = gray[idx];
-                    
-                    // Calcular media local (aproximación rápida muestreando puntos alrededor)
-                    // Para rendimiento real en JS puro sin Integral Images, tomamos 5 muestras del entorno
-                    let sum = 0;
-                    let count = 0;
-                    
-                    // Muestreo disperso alrededor
-                    const samples = [
-                        [0,0], [-halfWindow, 0], [halfWindow, 0], [0, -halfWindow], [0, halfWindow]
-                    ];
+                    let sum = 0, count = 0;
+                    const samples = [[0,0], [-halfWindow, 0], [halfWindow, 0], [0, -halfWindow], [0, halfWindow]];
                     
                     for(let s of samples) {
                         const sx = Math.min(Math.max(x + s[0], 0), width - 1);
@@ -639,10 +652,8 @@
                     }
                     
                     const localMean = sum / count;
-                    
-                    // Umbral dinámico: si es más oscuro que el promedio local (-offset), es negro.
                     const threshold = localMean - 10; 
-                    const binVal = val < threshold ? 0 : 255;
+                    const binVal = gray[idx] < threshold ? 0 : 255;
                     
                     const outIdx = idx * 4;
                     output[outIdx] = binVal;
@@ -654,39 +665,24 @@
             return output;
         }
 
-        // Deep Scan: Prueba Normal, Invertida, Umbrales Fijos y ADAPTATIVO
+        // Deep Scan: Normal -> Enfoque -> Adaptativo
         function performDeepScan(ctx, width, height) {
             const imageData = ctx.getImageData(0, 0, width, height);
             const originalData = imageData.data;
 
-            // 1. Intento Normal
+            // 1. Normal
             let code = jsQR(originalData, width, height, { inversionAttempts: "dontInvert" });
             if (code && isCNMCData(code.data)) return code.data;
 
-            // 2. Intento Invertido
-            code = jsQR(originalData, width, height, { inversionAttempts: "invertFirst" });
+            // 2. Enfoque (Sharpen)
+            const sharpenedData = getSharpenedData(ctx, width, height);
+            code = jsQR(sharpenedData, width, height, { inversionAttempts: "dontInvert" });
             if (code && isCNMCData(code.data)) return code.data;
 
-            // 3. Intento ADAPTATIVO (La clave para QRs vectoriales/borrosos)
-            const adaptiveData = getAdaptiveThresholdImage(ctx, width, height);
+            // 3. Adaptativo sobre Enfocado
+            const adaptiveData = getAdaptiveThresholdImage(sharpenedData, width, height);
             code = jsQR(adaptiveData, width, height, { inversionAttempts: "dontInvert" });
             if (code && isCNMCData(code.data)) return code.data;
-
-            // 4. Barrido de Umbrales Fijos (Backup)
-            const thresholds = [100, 160]; 
-            for (const threshold of thresholds) {
-                const binarizedData = new Uint8ClampedArray(originalData.length);
-                for (let i = 0; i < originalData.length; i += 4) {
-                    const luma = 0.299 * originalData[i] + 0.587 * originalData[i + 1] + 0.114 * originalData[i + 2];
-                    const val = luma < threshold ? 0 : 255;
-                    binarizedData[i] = val;
-                    binarizedData[i+1] = val;
-                    binarizedData[i+2] = val;
-                    binarizedData[i+3] = 255; 
-                }
-                code = jsQR(binarizedData, width, height, { inversionAttempts: "dontInvert" });
-                if (code && isCNMCData(code.data)) return code.data;
-            }
 
             return null;
         }
@@ -701,17 +697,14 @@
 
             const w = canvas.width, h = canvas.height;
             
-            // Grid 3x3 solapado
+            // Zonas estratégicas incluyendo COLUMNA DERECHA COMPLETA
             const zones = [
-                { x: 0, y: 0, w: w/2, h: h/2 },
-                { x: w/2, y: 0, w: w/2, h: h/2 },
-                { x: 0, y: h/2, w: w/2, h: h/2 },
-                { x: w/2, y: h/2, w: w/2, h: h/2 },
-                { x: w/4, y: h/4, w: w/2, h: h/2 },
-                { x: 0, y: h/4, w: w/2, h: h/2 }, // Mid L
-                { x: w/2, y: h/4, w: w/2, h: h/2 }, // Mid R
-                { x: w/4, y: 0, w: w/2, h: h/2 }, // Mid T
-                { x: w/4, y: h/2, w: w/2, h: h/2 } // Mid B
+                { x: w*0.6, y: 0, w: w*0.4, h: h }, // Columna Derecha (Prioridad Alta)
+                { x: 0, y: 0, w: w/2, h: h/2 }, // TL
+                { x: w/2, y: 0, w: w/2, h: h/2 }, // TR
+                { x: 0, y: h/2, w: w/2, h: h/2 }, // BL
+                { x: w/2, y: h/2, w: w/2, h: h/2 }, // BR
+                { x: w/4, y: h/4, w: w/2, h: h/2 } // Center
             ];
 
             for (let z of zones) {
@@ -723,7 +716,7 @@
                 
                 const data = performDeepScan(tempCtx, z.w, z.h);
                 if (data) {
-                    processSuccess(data, 'Escáner Zonal (Adaptativo)', 0, tempC); 
+                    processSuccess(data, 'Escáner Zonal (Enfoque)', 0, tempC); 
                     return data; 
                 }
             }
