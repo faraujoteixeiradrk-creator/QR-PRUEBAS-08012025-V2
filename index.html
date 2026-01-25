@@ -877,6 +877,107 @@
     </div>
 </div>
 
+<!-- ========== VISTA DRK POWER (CLIENT-DIRECT-VIEW) ========== -->
+<div id="client-direct-view" class="fade-in flex flex-col items-center justify-center min-h-screen py-12" style="display: none; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+    <!-- Botón Volver -->
+    <button onclick="hideClientDirect()" style="position: absolute; top: 2rem; left: 2rem; background: rgba(37, 150, 190, 0.2); border: 2px solid #2596be; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; cursor: pointer; font-size: 1rem; transition: all 0.3s;">
+        ← Volver al Panel
+    </button>
+    
+    <!-- Inputs ocultos necesarios -->
+    <input type="file" id="camera-capture-input" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="file-upload-input" accept=".pdf,.jpg,.jpeg,.png,image/*,application/pdf" class="hidden">
+    
+    <!-- Header DRK Power -->
+    <div class="w-full max-w-5xl mb-12 text-center px-4">
+        <div class="flex flex-col items-center justify-center gap-4 mb-6">
+            <!-- Logo DRK arriba -->
+            <div class="flex items-center gap-3">
+                <!-- Logo circular DRK -->
+                <svg class="w-16 h-16 md:w-20 md:h-20" viewBox="0 0 100 100" fill="none">
+                    <defs>
+                        <linearGradient id="gradDRK1" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" style="stop-color:#E53935;stop-opacity:1" />
+                            <stop offset="25%" style="stop-color:#FF8C00;stop-opacity:1" />
+                        </linearGradient>
+                        <linearGradient id="gradDRK2" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#FF8C00;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:rgb(53,168,223);stop-opacity:1" />
+                        </linearGradient>
+                        <linearGradient id="gradDRK3" x1="100%" y1="0%" x2="0%" y2="0%">
+                            <stop offset="0%" style="stop-color:rgb(53,168,223);stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#4CAF50;stop-opacity:1" />
+                        </linearGradient>
+                        <linearGradient id="gradDRK4" x1="0%" y1="100%" x2="0%" y2="0%">
+                            <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#E53935;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <path d="M 50 5 A 45 45 0 0 1 95 50" stroke="url(#gradDRK1)" stroke-width="6" fill="none" stroke-linecap="round"/>
+                    <path d="M 95 50 A 45 45 0 0 1 50 95" stroke="url(#gradDRK2)" stroke-width="6" fill="none" stroke-linecap="round"/>
+                    <path d="M 50 95 A 45 45 0 0 1 5 50" stroke="url(#gradDRK3)" stroke-width="6" fill="none" stroke-linecap="round"/>
+                    <path d="M 5 50 A 45 45 0 0 1 50 5" stroke="url(#gradDRK4)" stroke-width="6" fill="none" stroke-linecap="round"/>
+                </svg>
+                
+                <!-- Texto DRK -->
+                <h1 class="text-6xl md:text-7xl lg:text-8xl font-black tracking-tight" style="color: rgb(53,168,223);">DRK</h1>
+            </div>
+            
+            <!-- POWER abajo -->
+            <div class="bg-slate-800 px-6 md:px-8 py-2 md:py-3 rounded-lg">
+                <h2 class="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-wider">POWER</h2>
+            </div>
+        </div>
+        <p class="text-slate-300 text-sm md:text-base lg:text-lg uppercase tracking-widest font-mono leading-relaxed">
+            SOLO PARA FACTURAS PDF DIRECTAS<br class="md:hidden">
+            <span class="hidden md:inline">DE LA COMERCIALIZADORA</span>
+            <span class="md:hidden">DE LA COMERCIALIZADORA</span>
+            <span class="block mt-2 text-xs md:text-sm" style="color: rgb(53,168,223);">(MULTIIDIOMAS)</span>
+        </p>
+    </div>
+    
+    <!-- Selector de idiomas -->
+    <div class="w-full max-w-5xl mb-8 flex flex-wrap justify-center gap-3 px-4">
+        <button onclick="if(window.LANG) window.LANG.change('es')" class="px-5 py-2.5 rounded-lg bg-slate-700/50 border-2 border-slate-600 hover:bg-slate-700 text-white font-semibold transition text-sm" style="border-color: rgb(53,168,223);">
+            🇪🇸 ES
+        </button>
+        <button onclick="if(window.LANG) window.LANG.change('en')" class="px-5 py-2.5 rounded-lg bg-slate-700/50 border-2 border-slate-600 hover:bg-slate-700 text-white font-semibold transition text-sm" style="border-color: rgb(53,168,223);">
+            🇬🇧 EN
+        </button>
+        <button onclick="if(window.LANG) window.LANG.change('zh')" class="px-5 py-2.5 rounded-lg bg-slate-700/50 border-2 border-slate-600 hover:bg-slate-700 text-white font-semibold transition text-sm" style="border-color: rgb(53,168,223);">
+            🇨🇳 ZH
+        </button>
+        <button onclick="if(window.LANG) window.LANG.change('fr')" class="px-5 py-2.5 rounded-lg bg-slate-700/50 border-2 border-slate-600 hover:bg-slate-700 text-white font-semibold transition text-sm" style="border-color: rgb(53,168,223);">
+            🇫🇷 FR
+        </button>
+        <button onclick="if(window.LANG) window.LANG.change('de')" class="px-5 py-2.5 rounded-lg bg-slate-700/50 border-2 border-slate-600 hover:bg-slate-700 text-white font-semibold transition text-sm" style="border-color: rgb(53,168,223);">
+            🇩🇪 DE
+        </button>
+    </div>
+    
+    <!-- Zona de Drag & Drop -->
+    <div class="w-full max-w-5xl px-4">
+        <div id="drag-drop-zone-main" class="border-4 border-dashed border-blue-500/40 rounded-3xl p-12 md:p-20 text-center bg-slate-800/30 hover:bg-slate-800/50 hover:border-blue-400 transition-all duration-300 cursor-pointer backdrop-blur-sm">
+            <!-- Iconos grandes -->
+            <div class="flex items-center justify-center gap-8 mb-8">
+                <svg class="w-20 h-20 md:w-28 md:h-28 text-slate-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/>
+                    <path d="M14 2v6h6M10 13h4M10 17h4M10 9h1"/>
+                </svg>
+                <svg class="w-20 h-20 md:w-28 md:h-28 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </div>
+            
+            <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Arrastra el PDF de la factura original de la comercializadora</h2>
+            <p class="text-slate-300 text-base md:text-lg">
+                Válido para todas las comercializadoras de electricidad, <span class="font-bold text-red-400">excepto PVPC</span>.
+            </p>
+        </div>
+    </div>
+</div>
+
 <!-- ========== CALCULADORA COMPLETA ========== -->
 <div id="calculator-view">
     <button class="back-btn" onclick="showPanel()">
@@ -23217,10 +23318,19 @@ function showCalculator() {
     }, 150);
 }
 
-// Función para mostrar DRK POWER - Va directamente al calculador
+// Función para mostrar DRK POWER - Muestra la vista client-direct-view
 function showClientDirect() {
-    showCalculator();
-    console.log('✅ DRK POWER activado - redirigiendo a calculador');
+    document.getElementById('panel-view').style.display = 'none';
+    document.getElementById('client-direct-view').style.display = 'flex';
+    window.scrollTo(0, 0);
+    console.log('✅ DRK POWER activado - vista client-direct-view');
+}
+
+// Función para ocultar DRK POWER y volver al panel
+function hideClientDirect() {
+    document.getElementById('client-direct-view').style.display = 'none';
+    document.getElementById('panel-view').style.display = 'block';
+    window.scrollTo(0, 0);
 }
 
 function showPanel() {
